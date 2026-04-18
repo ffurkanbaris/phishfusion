@@ -1,0 +1,23 @@
+# Sanal ortamlar
+phisfusion/
+phishfusion/
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Model / log (isteğe bağlı: ağırlıkları da yüklemek istemiyorsanız)
+weights/*.pth
+logs/
+
+# Büyük veri (GitHub 100MB sınırı; CSV’ler çok büyükse)
+data/
