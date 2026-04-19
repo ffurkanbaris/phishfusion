@@ -13,8 +13,8 @@ class PhishFusion(nn.Module):
         super(PhishFusion, self).__init__()
         
         # 1. Uzman Kanalların (Dalların) Tanımlanması
-        self.anatomical_branch = AnatomicalBranch() # 24 -> 32
-        self.lexical_branch = LexicalBranch()       # URL -> 32
+        self.anatomical_branch = AnatomicalBranch()
+        self.lexical_branch = LexicalBranch()
         self.statistical_branch = StatisticalBranch() # 18 -> 32
         
         # 2. Meta-Öğrenici (Meta-Learner) Katmanları

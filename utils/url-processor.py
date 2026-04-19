@@ -1,9 +1,15 @@
 import re
 import csv
 import ipaddress
+import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 import numpy as np
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from utils.url_normalize import normalize_url_for_lexical
 import cv2
 from urllib.parse import urlparse
 from scipy import stats
@@ -21,7 +27,7 @@ class PhishFusionProcessor:
     def extract_qr_anatomical_features(self, image_path):
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
-            return np.zeros(24, dtype=np.float32) # Dosya bulunamazsa boş dön
+            return np.zeros(24, dtype=np.float32)
 
         # Makaledeki akış: QR'ı hizala/crop et -> median+gaussian+CLAHE ile temizle
         # -> module-size tahmini ile binary module grid'e dönüştür.
@@ -30,8 +36,10 @@ class PhishFusionProcessor:
         binary_matrix = self._convert_qr_to_binary_modules(cleaned_qr)
         h, w = binary_matrix.shape
 
-        # --- A. Protocol-level Features (5 Adet, görüntüden türetilir) ---
-        version, ecc_level, mask_pattern, num_align_patterns, remainder_bits = self._extract_protocol_features(binary_matrix)
+        # --- A. Protocol-level (5): v/40, ECC, mask (0-7 skaler), align, remainder ---
+        version_norm, ecc_level, mask_pattern, num_align_patterns, remainder_bits = self._extract_protocol_features(
+            binary_matrix
+        )
 
         # --- B. Statistical Features (19 Adet) ---
         num_white = np.sum(binary_matrix == 0)
@@ -66,7 +74,11 @@ class PhishFusionProcessor:
         col_peaks = len(np.where(col_sums > col_sums.mean())[0])
 
         features = [
-            version, ecc_level, mask_pattern, num_align_patterns, remainder_bits,
+            version_norm,
+            ecc_level,
+            float(mask_pattern),
+            num_align_patterns,
+            remainder_bits,
             num_white, num_black, bw_ratio, qr_density, qr_mean_density,
             qr_std_row, qr_std_col, row_transitions, col_transitions, qr_entropy,
             qr_vert_asym, qr_horz_asym, tl, tr, bl, br, center,
@@ -161,18 +173,18 @@ class PhishFusionProcessor:
 
     def _extract_protocol_features(self, binary_matrix):
         """
-        QR protocol-level özelliklerini görüntüden çıkarır.
-        Dönen değerler: version, ecc_level, mask_pattern, num_align_patterns, remainder_bits
+        5 skaler: version_norm (v/40), ECC 1-4, mask 0-7, alignment count, remainder bits.
         """
         n = int(min(binary_matrix.shape[0], binary_matrix.shape[1]))
         version = int(round((n - 21) / 4.0) + 1)
         version = max(1, min(40, version))
+        version_norm = float(version) / 40.0
         ecc_level, mask_pattern = self._decode_format_info(binary_matrix)
 
         num_align_patterns = self._alignment_pattern_count(version)
         remainder_bits = self._remainder_bits(version)
 
-        return float(version), float(ecc_level), float(mask_pattern), float(num_align_patterns), float(remainder_bits)
+        return version_norm, float(ecc_level), float(mask_pattern), float(num_align_patterns), float(remainder_bits)
 
     def _decode_format_info(self, binary_matrix):
         """Format bits'ten ECC seviyesi (L/M/Q/H -> 1/2/3/4) ve mask pattern (0-7) çıkarır."""
@@ -323,11 +335,11 @@ class URLProcessor:
         return np.array(features, dtype=np.float32)
 
     def get_lexical_tokens(self, url):
-        url = url.lower()
+        url_lex = normalize_url_for_lexical(url, strip_scheme=True)
         if self.sp_processor:
-            tokens = self.sp_processor.encode(url, out_type=int)
+            tokens = self.sp_processor.encode(url_lex, out_type=int)
         else:
-            tokens = [self.char_to_idx.get(c, 0) for c in url]
+            tokens = [self.char_to_idx.get(c, 0) for c in url_lex]
             
         # PADDING (0 ID kullanımı SentencePiece'teki pad_id ile uyumlu olmalı)
         if len(tokens) > self.max_len:
@@ -341,14 +353,15 @@ class URLProcessor:
         SentencePiece Unigram modeli varsa onu kullanır.
         Model yoksa karakter-bazlı fallback tokenizasyona döner.
         """
+        url_lex = normalize_url_for_lexical(url, strip_scheme=True)
         if self.sp_processor is not None:
-            return self.sp_processor.encode(url, out_type=int)
-        return [self.char_to_idx.get(c, 0) for c in url]
+            return self.sp_processor.encode(url_lex, out_type=int)
+        return [self.char_to_idx.get(c, 0) for c in url_lex]
 
     def process(self, url, qr_image_path=None):
         stat_features = self.extract_statistical_features(url)
         lexical_tokens = self.get_lexical_tokens(url)
-        qr_features = np.zeros(24, dtype=np.float32) # Varsayılan boş vektör
+        qr_features = np.zeros(24, dtype=np.float32)
 
         if qr_image_path:
             qr_features = self.qr_processor.extract_qr_anatomical_features(qr_image_path)

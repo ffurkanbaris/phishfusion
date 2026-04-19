@@ -45,11 +45,10 @@ class AnatomicalBranch(nn.Module):
 
 # Test Amaçlı Kullanım
 if __name__ == "__main__":
-    # Örnek Giriş (Batch: 16, Özellik: 24)
     sample_qr_features = torch.randn(16, 24)
     
     model = AnatomicalBranch()
     output = model(sample_qr_features)
     
-    print(f"Anatomik Giriş Boyutu: {sample_qr_features.shape}") # [16, 24]
+    print(f"Anatomik Giriş Boyutu: {sample_qr_features.shape}")
     print(f"Anatomik Temsil (32D): {output.shape}")             # [16, 32]
