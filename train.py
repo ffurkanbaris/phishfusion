@@ -48,7 +48,7 @@ def train_model():
     # --- Hiperparametreler ---
     EPOCHS = 20
     BATCH_SIZE = 32
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Veri Hazırlığı: 18 istatistiksel özellik Min-Max [0,1], egitim istatistikleriyle ---
