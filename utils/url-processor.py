@@ -1,9 +1,15 @@
 import re
 import csv
 import ipaddress
+import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 import numpy as np
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from utils.url_normalize import normalize_url_for_lexical
 import cv2
 from urllib.parse import urlparse
 from scipy import stats
@@ -21,7 +27,7 @@ class PhishFusionProcessor:
     def extract_qr_anatomical_features(self, image_path):
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
-            return np.zeros(24, dtype=np.float32) # Dosya bulunamazsa boş dön
+            return np.zeros(24, dtype=np.float32)
 
         # Makaledeki akış: QR'ı hizala/crop et -> median+gaussian+CLAHE ile temizle
         # -> module-size tahmini ile binary module grid'e dönüştür.
@@ -30,8 +36,10 @@ class PhishFusionProcessor:
         binary_matrix = self._convert_qr_to_binary_modules(cleaned_qr)
         h, w = binary_matrix.shape
 
-        # --- A. Protocol-level Features (5 Adet, görüntüden türetilir) ---
-        version, ecc_level, mask_pattern, num_align_patterns, remainder_bits = self._extract_protocol_features(binary_matrix)
+        # --- A. Protocol-level (5): v/40, ECC, mask (0-7 skaler), align, remainder ---
+        version_norm, ecc_level, mask_pattern, num_align_patterns, remainder_bits = self._extract_protocol_features(
+            binary_matrix
+        )
 
         # --- B. Statistical Features (19 Adet) ---
         num_white = np.sum(binary_matrix == 0)
@@ -66,7 +74,11 @@ class PhishFusionProcessor:
         col_peaks = len(np.where(col_sums > col_sums.mean())[0])
 
         features = [
-            version, ecc_level, mask_pattern, num_align_patterns, remainder_bits,
+            version_norm,
+            ecc_level,
+            float(mask_pattern),
+            num_align_patterns,
+            remainder_bits,
             num_white, num_black, bw_ratio, qr_density, qr_mean_density,
             qr_std_row, qr_std_col, row_transitions, col_transitions, qr_entropy,
             qr_vert_asym, qr_horz_asym, tl, tr, bl, br, center,
@@ -161,18 +173,18 @@ class PhishFusionProcessor:
 
     def _extract_protocol_features(self, binary_matrix):
         """
-        QR protocol-level özelliklerini görüntüden çıkarır.
-        Dönen değerler: version, ecc_level, mask_pattern, num_align_patterns, remainder_bits
+        5 skaler: version_norm (v/40), ECC 1-4, mask 0-7, alignment count, remainder bits.
         """
         n = int(min(binary_matrix.shape[0], binary_matrix.shape[1]))
         version = int(round((n - 21) / 4.0) + 1)
         version = max(1, min(40, version))
+        version_norm = float(version) / 40.0
         ecc_level, mask_pattern = self._decode_format_info(binary_matrix)
 
         num_align_patterns = self._alignment_pattern_count(version)
         remainder_bits = self._remainder_bits(version)
 
-        return float(version), float(ecc_level), float(mask_pattern), float(num_align_patterns), float(remainder_bits)
+        return version_norm, float(ecc_level), float(mask_pattern), float(num_align_patterns), float(remainder_bits)
 
     def _decode_format_info(self, binary_matrix):
         """Format bits'ten ECC seviyesi (L/M/Q/H -> 1/2/3/4) ve mask pattern (0-7) çıkarır."""
@@ -261,27 +273,21 @@ class URLProcessor:
 
     def extract_statistical_features(self, url):
         """
-        Tabloya uyumlu 18 URL tabanli ozellik:
-        [Scheme, Has params, Has query, Has username, Has password, Has path,
-         Has port, Has other chars, Is TLD in params, Is TLD in query, Is IP hostname,
-         Has encoded chars, Has keyword login, Has keyword bank, Has repeated chars,
-         Has sensitive path, Has many subdomains, URL similarity index]
+        22 URL tabanli ozellik:
+        18 temel ozellik + [URL entropy, homoglyph/punycode, suspicious TLD, URL length norm].
         """
         parsed = urlparse(url)
         hostname = parsed.hostname if parsed.hostname else ""
         path = parsed.path if parsed.path else ""
         url_lower = url.lower()
 
-        # Hostname'den TLD cikarma (son etiket)
         host_labels = [p for p in hostname.lower().split(".") if p]
         tld = host_labels[-1] if host_labels else ""
 
-        # Has many subdomains: www hariç en az 2 subdomain
         subdomain_count = max(0, len(host_labels) - 2)
         if host_labels and host_labels[0] == "www":
             subdomain_count = max(0, subdomain_count - 1)
 
-        # IP hostname kontrolu
         is_ip_hostname = 0
         try:
             if hostname:
@@ -290,7 +296,6 @@ class URLProcessor:
         except ValueError:
             is_ip_hostname = 0
 
-        # URL similarity index (0-1): hostname ile bilinen domainler arasinda max benzerlik
         similarity_score = 0.0
         host_for_similarity = hostname.lower().strip()
         if host_for_similarity:
@@ -300,34 +305,51 @@ class URLProcessor:
                     SequenceMatcher(None, host_for_similarity, domain).ratio(),
                 )
 
+        # Ek 4 ozellik (22'ye tamamlamak icin)
+        if url_lower:
+            probs = [url_lower.count(c) / len(url_lower) for c in set(url_lower)]
+            entropy = float(-sum(p * np.log2(p) for p in probs if p > 0))
+        else:
+            entropy = 0.0
+
+        has_homoglyph_or_punycode = 1.0 if (any(ord(c) > 127 for c in url) or "xn--" in url_lower) else 0.0
+        suspicious_tlds = {"xyz", "top", "tk", "pw", "ga", "cf", "live", "icu", "monster"}
+        is_suspicious_tld = 1.0 if tld in suspicious_tlds else 0.0
+        url_length_norm = float(min(len(url), 512) / 512.0)
+
         features = [
-            1 if parsed.scheme in {"http", "https"} else 0,                         # 1. Scheme
-            1 if bool(parsed.params) else 0,                                          # 2. Has params
-            1 if bool(parsed.query) else 0,                                           # 3. Has query
-            1 if bool(parsed.username) else 0,                                        # 4. Has username
-            1 if bool(parsed.password) else 0,                                        # 5. Has password
-            1 if bool(path and path != "/") else 0,                                   # 6. Has path
-            1 if parsed.port else 0,                                                  # 7. Has port
-            1 if re.search(r"[^a-zA-Z0-9:/?#\[\]@!$&'()*+,;=%._~-]", url) else 0,    # 8. Has other chars
-            1 if (tld and tld in parsed.params.lower()) else 0,                       # 9. Is TLD in params
-            1 if (tld and tld in parsed.query.lower()) else 0,                        # 10. Is TLD in query
-            is_ip_hostname,                                                           # 11. Is IP hostname
-            1 if re.search(r"%[0-9a-fA-F]{2}", url) else 0,                          # 12. Has encoded chars
-            1 if "login" in url_lower else 0,                                         # 13. Has keyword login
-            1 if "bank" in url_lower else 0,                                          # 14. Has keyword bank
-            1 if re.search(r"(.)\1{2,}", url_lower) else 0,                           # 15. Has repeated chars
-            1 if any(k in path.lower() for k in self.sensitive_path_keywords) else 0, # 16. Has sensitive path
-            1 if subdomain_count > 1 else 0,                                          # 17. Has many subdomains
-            float(similarity_score),                                                  # 18. URL similarity index
+            1 if parsed.scheme in {"http", "https"} else 0,
+            1 if bool(parsed.params) else 0,
+            1 if bool(parsed.query) else 0,
+            1 if bool(parsed.username) else 0,
+            1 if bool(parsed.password) else 0,
+            1 if bool(path and path != "/") else 0,
+            1 if parsed.port else 0,
+            1 if re.search(r"[^a-zA-Z0-9:/?#\[\]@!$&'()*+,;=%._~-]", url) else 0,
+            1 if (tld and tld in parsed.params.lower()) else 0,
+            1 if (tld and tld in parsed.query.lower()) else 0,
+            is_ip_hostname,
+            1 if re.search(r"%[0-9a-fA-F]{2}", url) else 0,
+            1 if "login" in url_lower else 0,
+            1 if "bank" in url_lower else 0,
+            1 if re.search(r"(.)\1{2,}", url_lower) else 0,
+            1 if any(k in path.lower() for k in self.sensitive_path_keywords) else 0,
+            1 if subdomain_count > 1 else 0,
+            float(similarity_score),
+            entropy,
+            has_homoglyph_or_punycode,
+            is_suspicious_tld,
+            url_length_norm,
         ]
+
         return np.array(features, dtype=np.float32)
 
     def get_lexical_tokens(self, url):
-        url = url.lower()
+        url_lex = normalize_url_for_lexical(url, strip_scheme=True)
         if self.sp_processor:
-            tokens = self.sp_processor.encode(url, out_type=int)
+            tokens = self.sp_processor.encode(url_lex, out_type=int)
         else:
-            tokens = [self.char_to_idx.get(c, 0) for c in url]
+            tokens = [self.char_to_idx.get(c, 0) for c in url_lex]
             
         # PADDING (0 ID kullanımı SentencePiece'teki pad_id ile uyumlu olmalı)
         if len(tokens) > self.max_len:
@@ -341,14 +363,15 @@ class URLProcessor:
         SentencePiece Unigram modeli varsa onu kullanır.
         Model yoksa karakter-bazlı fallback tokenizasyona döner.
         """
+        url_lex = normalize_url_for_lexical(url, strip_scheme=True)
         if self.sp_processor is not None:
-            return self.sp_processor.encode(url, out_type=int)
-        return [self.char_to_idx.get(c, 0) for c in url]
+            return self.sp_processor.encode(url_lex, out_type=int)
+        return [self.char_to_idx.get(c, 0) for c in url_lex]
 
     def process(self, url, qr_image_path=None):
         stat_features = self.extract_statistical_features(url)
         lexical_tokens = self.get_lexical_tokens(url)
-        qr_features = np.zeros(24, dtype=np.float32) # Varsayılan boş vektör
+        qr_features = np.zeros(24, dtype=np.float32)
 
         if qr_image_path:
             qr_features = self.qr_processor.extract_qr_anatomical_features(qr_image_path)
@@ -382,7 +405,7 @@ class URLProcessor:
 
     def _build_feature_header(self):
         lexical_headers = [f"lexical_token_{i}" for i in range(self.max_len)]
-        statistical_headers = [f"stat_feature_{i}" for i in range(18)]
+        statistical_headers = [f"stat_feature_{i}" for i in range(22)]
         anatomical_headers = [f"anatomical_feature_{i}" for i in range(24)]
         return ["decoded_url"] + lexical_headers + statistical_headers + anatomical_headers
 
@@ -495,7 +518,7 @@ if __name__ == "__main__":
     processor = URLProcessor(max_len=128)
     if qr_image_path_arg == "--outputcsv":
         train_root_arg = sys.argv[2] if len(sys.argv) > 2 else "data/raw/test"
-        output_csv_labeled_arg = sys.argv[3] if len(sys.argv) > 3 else "data/processed/test_features.csv"
+        output_csv_labeled_arg = sys.argv[3] if len(sys.argv) > 3 else "data/processed/test2_features.csv"
         result = processor.write_labeled_features_from_train_dirs(
             train_root=train_root_arg,
             output_csv_path=output_csv_labeled_arg,
