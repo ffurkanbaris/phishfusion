@@ -508,17 +508,17 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         print("Kullanim:")
-        print("  python url-processor.py <qr_image_path> [output_csv_path]")
-        print("  python url-processor.py --from-train-dirs [train_root] [output_csv_path]")
+        print("  python url_processor.py <qr_image_path> [output_csv_path]")
+        print("  python url_processor.py --from-train-dirs [train_root] [output_csv_path]")
         sys.exit(1)
 
     qr_image_path_arg = sys.argv[1]
     output_csv_arg = sys.argv[2] if len(sys.argv) > 2 else "data/processed/qr_url_features.csv"
 
     processor = URLProcessor(max_len=128)
-    if qr_image_path_arg == "--outputcsv":
+    if qr_image_path_arg == "--from-train-dirs":
         train_root_arg = sys.argv[2] if len(sys.argv) > 2 else "data/raw/test"
-        output_csv_labeled_arg = sys.argv[3] if len(sys.argv) > 3 else "data/processed/test2_features.csv"
+        output_csv_labeled_arg = sys.argv[3] if len(sys.argv) > 3 else "data/processed/test_features.csv"
         result = processor.write_labeled_features_from_train_dirs(
             train_root=train_root_arg,
             output_csv_path=output_csv_labeled_arg,

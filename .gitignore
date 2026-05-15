@@ -10,17 +10,17 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
-
-# CSV veri setleri repoda tutulmaz (istekle `url-processor` ile uretilir).
+app/
 *.csv
+*.png
 
 # IDE
 .idea/
 .vscode/
 
-# Model / log (isteğe bağlı: ağırlıkları da yüklemek istemiyorsanız)
+# Model / log 
 weights/*.pth
 logs/
 
-# Ham / islenmis veri klasoru (CSV dahil tum icerik)
+# Ham / islenmis veri klasoru
 data/

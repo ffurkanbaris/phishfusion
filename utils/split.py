@@ -37,8 +37,10 @@ def split_qr_dataset(normal_dir, phishing_dir, output_dir, test_size=0.2, random
     def copy_to_dest(file_list, label_list, set_name):
         for f, l in zip(file_list, label_list):
             category = 'normal' if l == 0 else 'phishing'
-            dest_path = os.path.join(output_dir, set_name, category, os.path.basename(f))
-            shutil.copy2(f, dest_path) # copy2 metadata'yı korur
+            # Kategori öneki ile benzersiz isim - Ayni isimli dosyalar birbirinin uzerine yazilmaz
+            dest_filename = f"{category}_{os.path.basename(f)}"
+            dest_path = os.path.join(output_dir, set_name, category, dest_filename)
+            shutil.copy2(f, dest_path) # copy2 metadata'yi korur
 
     # İşlemi başlat
     print(f"Kopyalama işlemi başladı...")

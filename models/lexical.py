@@ -16,7 +16,7 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, :x.size(1)]
 
 class LexicalBranch(nn.Module):
-    def __init__(self, vocab_size=1000, d_model=512, nhead=8, num_layers=8, output_dim=32, pad_idx=0):
+    def __init__(self, vocab_size=1000, d_model=64, nhead=4, num_layers=2, output_dim=32, pad_idx=0):
         super(LexicalBranch, self).__init__()
         self.pad_idx = pad_idx # Define which ID represents padding
         
@@ -26,7 +26,7 @@ class LexicalBranch(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model, 
             nhead=nhead, 
-            dim_feedforward=512, 
+            dim_feedforward=d_model * 4,  
             dropout=0.1,
             batch_first=True
         )

@@ -8,7 +8,7 @@ class PhishFusion(nn.Module):
     def __init__(self):
         super(PhishFusion, self).__init__()
         
-        # 1. Expert Expert Branches
+        # 1. Expert Branches
         self.anatomical_branch = AnatomicalBranch()
         self.lexical_branch = LexicalBranch()
         self.statistical_branch = StatisticalBranch()
@@ -28,7 +28,7 @@ class PhishFusion(nn.Module):
             dropout=0.1,
             batch_first=True
         )
-        self.cross_modal_transformer = nn.TransformerEncoder(self.attention_layer, num_layers=1)
+        self.cross_modal_transformer = nn.TransformerEncoder(self.attention_layer, num_layers=2)
 
         # 4. Meta-Learner
         self.meta_learner = nn.Sequential(
@@ -46,7 +46,6 @@ class PhishFusion(nn.Module):
         v_s = self.statistical_branch(stat_features) 
 
         # Step 2: Apply BatchNorm1d to align scales
-        # This prevents any single branch from dominating the Fusion early on
         v_a = self.norm_anatomical(v_a)
         v_l = self.norm_lexical(v_l)
         v_s = self.norm_statistical(v_s)
