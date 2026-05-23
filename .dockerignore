@@ -1,0 +1,26 @@
+# Ignore git folder
+.git
+.gitignore
+.gitattributes
+
+# Ignore Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore Frontend build artifacts and node modules
+app/frontend/node_modules/
+app/frontend/dist/
+app/frontend/.svelte-kit/
+app/frontend/.next/
+
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db

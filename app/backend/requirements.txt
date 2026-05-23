@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+numpy
+pandas
+scipy
+scikit-learn
+opencv-python-headless
+sentencepiece
