@@ -10,7 +10,7 @@ function App() {
   const [error, setError] = useState(null);
   
   // For mobile app, localhost won't work. Allow user to input server IP.
-  const [serverUrl, setServerUrl] = useState('http://localhost:8000');
+  const [serverUrl, setServerUrl] = useState('https://ffeo-ff.hf.space');
 
   const takePicture = async () => {
     try {
