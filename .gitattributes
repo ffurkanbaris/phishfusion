@@ -1,1 +1,2 @@
-* text=auto eol=lfphishfusion_best.pth filter=lfs diff=lfs merge=lfs -text
+* text=auto eol=lf
+*.pth filter=lfs diff=lfs merge=lfs -text
