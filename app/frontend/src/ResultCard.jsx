@@ -21,7 +21,10 @@ export default function ResultCard({ result }) {
       </h2>
       
       <div className="score-text">
-        {scorePercent}% Risk Score
+        {scorePercent}%
+      </div>
+      <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem' }}>
+        Risk Score
       </div>
       
       <div className="progress-container">

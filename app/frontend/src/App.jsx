@@ -80,24 +80,24 @@ function App() {
     <div className="app-container">
       <div className="header">
         <h1>PhishFusion</h1>
-        <p>Mobile Phishing & QR Scanner</p>
+        <p>Mobile Security & QR Scanner</p>
       </div>
 
       <form className="glass-card" onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="serverUrl">Backend Server API URL</label>
+          <label htmlFor="serverUrl">Security Server API</label>
           <input
             type="text"
             id="serverUrl"
             className="input-field"
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
-            style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}
+            style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="url">Check Text URL</label>
+          <label htmlFor="url">Analyze Link</label>
           <input
             type="text"
             id="url"
@@ -108,23 +108,25 @@ function App() {
           />
         </div>
 
-        <div className="form-group" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-          - OR -
+        <div className="or-divider">
+          OR
         </div>
 
         <div className="form-group">
-          <label>Check QR Code</label>
+          <label>Scan QR Code</label>
           <button 
             type="button" 
-            className="btn" 
-            style={{ marginBottom: '1rem', backgroundColor: '#4f46e5' }}
+            className="btn secondary" 
+            style={{ marginBottom: '1rem' }}
             onClick={takePicture}
           >
-            📸 Scan with Camera
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+            Scan with Camera
           </button>
           
           <div className="file-upload">
-            {file ? file.name : "Select image from gallery"}
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            <div>{file ? file.name : "Upload image from gallery"}</div>
             <input 
               type="file" 
               accept="image/*" 
@@ -134,12 +136,12 @@ function App() {
         </div>
 
         {error && (
-          <div style={{ color: 'var(--danger-color)', marginBottom: '1rem', textAlign: 'center' }}>
+          <div className="error-message">
             {error}
           </div>
         )}
 
-        <button type="submit" className="btn" disabled={loading}>
+        <button type="submit" className="btn" disabled={loading} style={{ marginTop: '1.5rem' }}>
           {loading ? <span className="spinner"></span> : "Analyze Risk"}
         </button>
       </form>
